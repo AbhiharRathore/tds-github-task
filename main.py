@@ -30,6 +30,8 @@ DEFAULTS = {
     "api_key": "default-secret-000",
 }
 
+CONFIG_KEYS = {"port", "workers", "debug", "log_level", "api_key"}
+
 
 def normalize_key(raw_key: object) -> str | None:
     key = str(raw_key).strip().lower()
@@ -132,17 +134,23 @@ def effective_config(set: list[str] = Query(default=[])):
     # Highest priority: repeated ?set=key=value CLI-style query parameters.
     for item in set:
         if "=" not in item:
-            continue
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid query override: expected key=value",
+            )
         key, value = item.split("=", 1)
         normalized_key = normalize_key(key)
-        if not normalized_key:
-            continue
+        if normalized_key not in CONFIG_KEYS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid configuration key '{key.strip()}'",
+            )
         try:
             config[normalized_key] = coerce(normalized_key, value)
         except (TypeError, ValueError):
             raise HTTPException(
-                status_code=422,
-                detail=f"Invalid value for configuration key '{normalized_key}'",
+                status_code=400,
+                detail=f"Invalid integer for configuration key '{normalized_key}'",
             ) from None
 
     # Never disclose the actual API key.
